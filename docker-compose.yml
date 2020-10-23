@@ -1,0 +1,68 @@
+version: '2'
+
+services:
+  webserver:
+    build: ./nginx
+    ports:
+      - "80:80"
+    links:
+      - web:web
+  db:
+    image: 'postgres:13.0'
+    volumes:
+      - 'postgres:/var/lib/postgresql/data'
+    ports:
+      - '5432:5432'
+    env_file:
+      - '.env'
+
+  redis:
+    image: 'redis:5-alpine'
+    command: redis-server
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'redis:/data'
+
+  sidekiq:
+    depends_on:
+      - 'db'
+      - 'redis'
+    build: .
+    command: bundle exec sidekiq
+    volumes:
+      - '.:/project'
+      - '/project/tmp' # don't mount tmp directory
+    env_file:
+      - '.env'
+
+  web:
+    depends_on:
+      - 'db'
+      - 'redis'
+    build: .
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails s -p 3000 -b '0.0.0.0' -e ${RAILS_ENV}"
+    ports:
+      - '3000:3000'
+    volumes:
+      - '.:/project'
+    env_file:
+      - '.env'
+
+  pgadmin:
+    image: dpage/pgadmin4:4.27
+    restart: always
+    env_file:
+      - '.env'
+    ports:
+    - "9090:9090"
+    volumes:
+    - pgadmin-data:/var/lib/pgadmin
+    links:
+    - "db:pgsql-server"
+
+
+volumes:
+  redis:
+  postgres:
+  pgadmin-data:
